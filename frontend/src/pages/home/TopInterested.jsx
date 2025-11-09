@@ -52,7 +52,7 @@ const TopInterested = () => {
         breakpoints={{
           480: { slidesPerView: 1.3, spaceBetween: 6 },
           640: { slidesPerView: 1.6, spaceBetween: 8 },
-          768: { slidesPerView: 1.95, spaceBetween: 10 },
+          768: { slidesPerView: 1.95, spaceBetween: 8 },
           900:  { slidesPerView: 2.2, spaceBetween: 10 },
           1024: { slidesPerView: 3, spaceBetween: 10},
           1280: { slidesPerView: 4, spaceBetween: 12 }, // 4 on wide screens
