@@ -45,9 +45,30 @@ export const AuthProvider = ({ children }) => {
     };
 
     // 2. User Login (Firebase)
-    const loginUser = async (email, password) => {
-        return await signInWithEmailAndPassword(auth, email, password);
-    };
+            const loginUser = async (email, password) => {
+        // 1️⃣ Sign in user with Firebase
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        const user = userCredential.user;
+
+        // 2️⃣ Get Firebase token
+        const idToken = await user.getIdToken();
+
+        // 3️⃣ Send that token to your backend and store backend JWT
+        try {
+            const res = await axios.post(`${getBaseUrl()}/api/auth/firebase-login`, { idToken });
+            if (res.data?.token) {
+            localStorage.setItem('token', res.data.token);
+            console.log("✅ Backend JWT saved!");
+            } else {
+            console.warn("⚠️ No backend token received");
+            }
+        } catch (err) {
+            console.error("❌ Token exchange failed:", err.response?.data || err.message);
+        }
+
+        return user;
+        };
+
 
     // 3. Sign up with Google (Firebase)
     const signInWithGoogle = async () => {
