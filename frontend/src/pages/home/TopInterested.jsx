@@ -46,10 +46,11 @@ const TopInterested = () => {
       </div>
 
       <Swiper
-        slidesPerView={1}
-        spaceBetween={8}
+        slidesPerView={1.3}
+        spaceBetween={4}
         navigation={true}
         breakpoints={{
+          480: { slidesPerView: 1.4, spaceBetween: 6 },
           640: { slidesPerView: 1, spaceBetween: 8 },
           768: { slidesPerView: 2, spaceBetween: 10 },
           1024: { slidesPerView: 3, spaceBetween: 12 },
