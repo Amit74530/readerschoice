@@ -1,17 +1,16 @@
-
 // src/utils/baseURL.js
-const getBaseUrl = () => {
-  // ✅ 1. If environment variable is set (Render production)
-  const envBase = import.meta.env.VITE_API_BASE_URL;
-  if (envBase) return envBase;
+const trimTrailingSlash = (s = "") => s.replace(/\/+$/, "");
 
-  // ✅ 2. Local development (localhost)
+const getBaseUrl = () => {
+  const envBase = import.meta.env.VITE_API_BASE_URL;
+  if (envBase) return trimTrailingSlash(envBase);
+
   if (window.location.hostname === "localhost") {
-    return "http://localhost:5000"; // your local backend
+    return "http://localhost:5000";
   }
 
-  // ✅ 3. Fallback to your deployed backend on Render
-  return "https://readerschoice-ip2w.onrender.com/"; // <-- replace with your real backend Render URL
+  // fallback - remove any trailing slash that might accidentally appear
+  return trimTrailingSlash(window.location.origin);
 };
 
 export default getBaseUrl;
