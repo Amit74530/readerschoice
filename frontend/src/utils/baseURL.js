@@ -8,7 +8,7 @@ const getBaseUrl = () => {
   if (window.location.hostname === "localhost") {
     return "http://localhost:5000";
   }
-
+  return "https://readerschoice-ip2w.onrender.com";
   // fallback - remove any trailing slash that might accidentally appear
   return trimTrailingSlash(window.location.origin);
 };
