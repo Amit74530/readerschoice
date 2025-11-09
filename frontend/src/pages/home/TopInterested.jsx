@@ -1,6 +1,6 @@
 // src/components/TopInterested.jsx
 import React, { useState } from 'react';
-import BookCard from '../../books/BookCard';
+import BookCard from '../books/BookCard';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Pagination, Navigation } from 'swiper/modules';
 import 'swiper/css';
