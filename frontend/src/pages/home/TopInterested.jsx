@@ -1,6 +1,7 @@
 // src/components/TopInterested.jsx
 import React, { useState } from 'react';
-import BookCard from '../books/BookCard';
+import BookCard from "../books/BookCard";
+
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Pagination, Navigation } from 'swiper/modules';
 import 'swiper/css';
@@ -9,11 +10,10 @@ import 'swiper/css/navigation';
 import { useFetchAllBooksQuery } from '../../redux/features/books/booksApi';
 
 const categories = [
-  "Choose a genre", "Business", "Technology", "Fiction", "Non-Fiction",
-  "Self-Help", "Biography", "Science", "History", "Philosophy",
-  "Education", "Children", "Horror", "Adventure", "Romance",
-  "Fantasy", "Mystery", "Thriller", "Poetry", "Comics & Manga",
-  "Travel", "Religion & Spirituality", "Cooking", "Health & Fitness", "Art & Photography"
+  "Choose a genre","Business","Technology","Fiction","Non-Fiction","Self-Help",
+  "Biography","Science","History","Philosophy","Education","Children","Horror",
+  "Adventure","Romance","Fantasy","Mystery","Thriller","Poetry","Comics & Manga",
+  "Travel","Religion & Spirituality","Cooking","Health & Fitness","Art & Photography"
 ];
 
 const TopInterested = () => {
@@ -50,20 +50,25 @@ const TopInterested = () => {
         spaceBetween={6}
         navigation={true}
         breakpoints={{
-          480: { slidesPerView: 1.3, spaceBetween: 6 },
-          640: { slidesPerView: 1.6, spaceBetween: 8 },
-          768: { slidesPerView: 1.95, spaceBetween: 8 },
+          480:  { slidesPerView: 1.3, spaceBetween: 6 },
+          640:  { slidesPerView: 1.6, spaceBetween: 8 },
+          768:  { slidesPerView: 1.95, spaceBetween: 8 },
           900:  { slidesPerView: 2.2, spaceBetween: 10 },
-          1024: { slidesPerView: 3, spaceBetween: 10},
-          1280: { slidesPerView: 4, spaceBetween: 12 }, // 4 on wide screens
+          1024: { slidesPerView: 3,   spaceBetween: 10 },
+          1280: { slidesPerView: 4,   spaceBetween: 12 },
         }}
         modules={[Pagination, Navigation]}
         className="mySwiper"
       >
         {filteredBooks && filteredBooks.length > 0 ? (
           filteredBooks.map((book) => (
-            <SwiperSlide key={book?._id || book?.id}>
-              <BookCard book={book} />
+            <SwiperSlide
+              key={book?._id || book?.id}
+              className="flex justify-center !w-auto"
+            >
+              <div className="w-full max-w-[260px]">
+                <BookCard book={book} />
+              </div>
             </SwiperSlide>
           ))
         ) : (
