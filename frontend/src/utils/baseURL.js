@@ -11,7 +11,7 @@ const getBaseUrl = () => {
   }
 
   // ✅ 3. Fallback to your deployed backend on Render
-  return "https://your-backend-name.onrender.com"; // <-- replace with your real backend Render URL
+  return "https://readerschoice-ip2w.onrender.com/"; // <-- replace with your real backend Render URL
 };
 
 export default getBaseUrl;
