@@ -1,111 +1,75 @@
-import React, { useEffect, useState } from 'react'
-import BookCard from '../books/BookCard'; // This is the next file we need!
-
-// Import Swiper React components
+// src/components/TopInterested.jsx
+import React, { useState } from 'react';
+import BookCard from '../../pages/books/BookCard';
 import { Swiper, SwiperSlide } from 'swiper/react';
-
-// import required modules
 import { Pagination, Navigation } from 'swiper/modules';
-
-// Import Swiper styles
 import 'swiper/css';
 import 'swiper/css/pagination';
 import 'swiper/css/navigation';
 import { useFetchAllBooksQuery } from '../../redux/features/books/booksApi';
 
 const categories = [
-  "Choose a genre",
-  "Business",
-  "Technology",
-  "Fiction",
-  "Non-Fiction",
-  "Self-Help",
-  "Biography",
-  "Science",
-  "History",
-  "Philosophy",
-  "Education",
-  "Children",
-  "Horror",
-  "Adventure",
-  "Romance",
-  "Fantasy",
-  "Mystery",
-  "Thriller",
-  "Poetry",
-  "Comics & Manga",
-  "Travel",
-  "Religion & Spirituality",
-  "Cooking",
-  "Health & Fitness",
-  "Art & Photography"
+  "Choose a genre", "Business", "Technology", "Fiction", "Non-Fiction",
+  "Self-Help", "Biography", "Science", "History", "Philosophy",
+  "Education", "Children", "Horror", "Adventure", "Romance",
+  "Fantasy", "Mystery", "Thriller", "Poetry", "Comics & Manga",
+  "Travel", "Religion & Spirituality", "Cooking", "Health & Fitness", "Art & Photography"
 ];
 
-
-// Renamed from TopSellers to TopInterested
 const TopInterested = () => {
-    
-    const [selectedCategory, setSelectedCategory] = useState("Choose a genre");
+  const [selectedCategory, setSelectedCategory] = useState("Choose a genre");
+  const { data: books = [] } = useFetchAllBooksQuery();
 
-   const {data: books = []} = useFetchAllBooksQuery();
-  
-    const filteredBooks = selectedCategory === "Choose a genre" ? books : books.filter(book => book.category === selectedCategory.toLowerCase())
+  const filteredBooks =
+    selectedCategory === "Choose a genre"
+      ? books
+      : books.filter((book) => (book?.category || "").toLowerCase() === selectedCategory.toLowerCase());
 
-    return (
-        <div className='py-10'>
-            {/* Changed the title */}
-            <h2 className='text-3xl font-semibold mb-6'>Top Interested</h2> 
-            
-            {/* category filtering */}
-            <div className='mb-8 flex items-center'>
-                <select
-                    onChange={(e) => setSelectedCategory(e.target.value)}
-                    name="category" id="category" className='border bg-[#EAEAEA] border-gray-300 rounded-md px-4 py-2 focus:outline-none'>
-                    {
-                        categories.map((category, index) => (
-                            <option key={index} value={category}>{category}</option>
-                        ))
-                    }
-                </select>
-            </div>
+  return (
+    <div className="py-10">
+      <h2 className="text-2xl sm:text-3xl font-semibold mb-4">Top Interested</h2>
 
-            <Swiper
-                slidesPerView={1}
-                spaceBetween={30}
-                navigation={true}
-                breakpoints={{
-                    640: {
-                        slidesPerView: 1,
-                        spaceBetween: 20,
-                    },
-                    768: {
-                        slidesPerView: 2,
-                        spaceBetween: 40,
-                    },
-                    1024: {
-                        slidesPerView: 2,
-                        spaceBetween: 50,
-                    },
-                    1180: {
-                        slidesPerView: 3,
-                        spaceBetween: 50,
-                    }
-                }}
-                modules={[Pagination, Navigation]}
-                className="mySwiper"
-            >
+      <div className="mb-6 flex items-center">
+        <select
+          onChange={(e) => setSelectedCategory(e.target.value)}
+          value={selectedCategory}
+          name="category"
+          id="category"
+          className="border bg-[#EAEAEA] border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none"
+        >
+          {categories.map((category, index) => (
+            <option key={index} value={category}>
+              {category}
+            </option>
+          ))}
+        </select>
+      </div>
 
-                {
-                   filteredBooks.length > 0 && filteredBooks.map((book, index) => (
-                        <SwiperSlide key={index}>
-                            {/* This is the component that has the button we need to change */}
-                            <BookCard  book={book} />
-                        </SwiperSlide>
-                    ))
-                }
-            </Swiper>
-        </div>
-    )
-}
+      <Swiper
+        slidesPerView={1}
+        spaceBetween={8}
+        navigation={true}
+        breakpoints={{
+          640: { slidesPerView: 1, spaceBetween: 8 },
+          768: { slidesPerView: 2, spaceBetween: 10 },
+          1024: { slidesPerView: 3, spaceBetween: 12 },
+          1280: { slidesPerView: 4, spaceBetween: 14 }, // 4 on wide screens
+        }}
+        modules={[Pagination, Navigation]}
+        className="mySwiper"
+      >
+        {filteredBooks && filteredBooks.length > 0 ? (
+          filteredBooks.map((book) => (
+            <SwiperSlide key={book?._id || book?.id}>
+              <BookCard book={book} />
+            </SwiperSlide>
+          ))
+        ) : (
+          <div className="p-6 text-gray-500">No books found for this category.</div>
+        )}
+      </Swiper>
+    </div>
+  );
+};
 
-export default TopInterested; // Renamed export
+export default TopInterested;
