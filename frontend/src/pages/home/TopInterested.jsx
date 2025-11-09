@@ -1,6 +1,6 @@
 // src/components/TopInterested.jsx
 import React, { useState } from 'react';
-import BookCard from '../../pages/books/BookCard';
+import BookCard from '../../books/BookCard';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Pagination, Navigation } from 'swiper/modules';
 import 'swiper/css';
@@ -26,7 +26,7 @@ const TopInterested = () => {
       : books.filter((book) => (book?.category || "").toLowerCase() === selectedCategory.toLowerCase());
 
   return (
-    <div className="py-10">
+    <div className="py-8">
       <h2 className="text-2xl sm:text-3xl font-semibold mb-4">Top Interested</h2>
 
       <div className="mb-6 flex items-center">
@@ -46,15 +46,16 @@ const TopInterested = () => {
       </div>
 
       <Swiper
-        slidesPerView={1.3}
-        spaceBetween={4}
+        slidesPerView={1.05}
+        spaceBetween={6}
         navigation={true}
         breakpoints={{
-          480: { slidesPerView: 1.4, spaceBetween: 6 },
-          640: { slidesPerView: 1, spaceBetween: 8 },
-          768: { slidesPerView: 2, spaceBetween: 10 },
-          1024: { slidesPerView: 3, spaceBetween: 12 },
-          1280: { slidesPerView: 4, spaceBetween: 14 }, // 4 on wide screens
+          480: { slidesPerView: 1.3, spaceBetween: 6 },
+          640: { slidesPerView: 1.6, spaceBetween: 8 },
+          768: { slidesPerView: 1.95, spaceBetween: 10 },
+          900:  { slidesPerView: 2.2, spaceBetween: 10 },
+          1024: { slidesPerView: 3, spaceBetween: 10},
+          1280: { slidesPerView: 4, spaceBetween: 12 }, // 4 on wide screens
         }}
         modules={[Pagination, Navigation]}
         className="mySwiper"
