@@ -29,7 +29,8 @@ try {
 
 // --- CORS SETUP ---
 const allowedOrigins = [
-  'https://book-app-frontend-tau.vercel.app',
+  'https://readerschoice.vercel.app',
+  'http://localhost:5173', 
   // add other production origins here if needed
 ];
 
