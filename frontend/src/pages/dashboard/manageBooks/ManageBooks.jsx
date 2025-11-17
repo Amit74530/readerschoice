@@ -119,8 +119,13 @@ const ManageBooks = () => {
                                             </td>
 
                                             <td className="border-t-0 px-6 align-center border-l-0 border-r-0 text-xs whitespace-nowrap p-4">
-                                                {book.category}
+                                            {Array.isArray(book.category)
+                                                ? book.category.join(", ")                              // array → join neatly
+                                                : typeof book.category === "string"
+                                                ? book.category.split(",").map((c) => c.trim()).join(", ")  // string → ensure spacing
+                                                : "—"}
                                             </td>
+
 
                                             {/* Count cell */}
                                             <td className="border-t-0 px-6 align-center border-l-0 border-r-0 text-xs whitespace-nowrap p-4">

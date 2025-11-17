@@ -1,58 +1,60 @@
+// src/books/book.model.js
 const mongoose = require('mongoose');
 
-const bookSchema = new mongoose.Schema({
-  title: {
-    type: String,
-    required: true,
-    trim: true,
-  },
-  author: {
-    type: String,
-    required: true,
-    trim: true,
-    default: 'Unknown',
-  },
-  description: {
-    type: String,
-    required: true,
-  },
-  category: {
-    type: String,
-    required: true,
-    trim: true,
-  },
-  trending: {
-    type: Boolean,
-    default: false,
-  },
-  coverImage: {
-    type: String,
-    required: true,
-  },
-  oldPrice: {
-    type: Number,
-    required: true,
-    min: 0,
-  },
-  newPrice: {
-    type: Number,
-    required: true,
-    min: 0,
-  },
-  count: {
-    type: Number,
-    required: true,
-    min: 0,
-    default: 1,
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now,
-  },
-}, {
-  timestamps: true,
-});
+const bookSchema = new mongoose.Schema(
+  {
+    title: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    author: {
+      type: String,
+      required: true,
+      trim: true,
+      default: 'Unknown',
+    },
+    description: {
+      type: String,
+      default: '',
+    },
 
-const Book = mongoose.model('Book', bookSchema);
+    // 🔥 CATEGORY NOW SUPPORTS MULTIPLE TAGS
+    category: {
+      type: [String], // array of strings
+      default: [],     // NOT required
+    },
 
-module.exports = Book;
+    trending: {
+      type: Boolean,
+      default: false,
+    },
+
+    // 🔥 IMAGE OPTIONAL (so edit won't fail)
+    coverImage: {
+      type: String,
+      default: "", 
+    },
+
+    oldPrice: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
+    newPrice: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
+    count: {
+      type: Number,
+      default: 1,
+      min: 0,
+    },
+  },
+  { timestamps: true }
+);
+
+module.exports = mongoose.model('Book', bookSchema);

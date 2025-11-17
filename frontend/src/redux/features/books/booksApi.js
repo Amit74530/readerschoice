@@ -1,16 +1,17 @@
+// src/redux/features/books/booksApi.js
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import getBaseUrl from '../../../utils/baseURL';
 
 const baseQuery = fetchBaseQuery({
   baseUrl: `${getBaseUrl()}/api/books`,
   credentials: 'include',
-  prepareHeaders: (Headers) => {
+  prepareHeaders: (headers) => {
     const token = localStorage.getItem('token');
     if (token) {
-      Headers.set('Authorization', `Bearer ${token}`);
+      headers.set('Authorization', `Bearer ${token}`);
     }
-    return Headers;
-  }
+    return headers;
+  },
 });
 
 const booksApi = createApi({
@@ -37,30 +38,59 @@ const booksApi = createApi({
     }),
 
     // Count by title: GET /api/books/count?title=... -> { count }
-    // Use this to show "Existing copies" per title
     getCountByTitle: builder.query({
       query: (title) => `/count${title ? `?title=${encodeURIComponent(title)}` : ''}`,
       providesTags: ['Books'],
     }),
 
     // Create a new book
+    // Expectation: caller passes a FormData instance (for file upload) or plain object (rare)
     addBook: builder.mutation({
-      query: (newBook) => ({
-        url: '/create-book',
-        method: 'POST',
-        body: newBook,
-      }),
+      query: (payload) => {
+        // If caller passed a FormData, send it directly (browser sets Content-Type)
+        if (payload instanceof FormData) {
+          return {
+            url: '/create-book',
+            method: 'POST',
+            body: payload,
+          };
+        }
+
+        // Otherwise assume plain object and send JSON
+        return {
+          url: '/create-book',
+          method: 'POST',
+          body: JSON.stringify(payload),
+          headers: { 'Content-Type': 'application/json' },
+        };
+      },
       invalidatesTags: ['Books'],
     }),
 
     // Update a book
+    // Usage patterns:
+    // - updateBook({ id, formData })  // for multipart / file uploads
+    // - updateBook({ id, body })      // for JSON-only updates (partial)
     updateBook: builder.mutation({
-      query: ({ id, ...rest }) => ({
-        url: `/edit/${id}`,
-        method: 'PUT',
-        body: rest,
-        headers: { 'Content-Type': 'application/json' },
-      }),
+      query: ({ id, formData, body }) => {
+        if (!id) throw new Error('updateBook requires an id');
+
+        if (formData instanceof FormData) {
+          return {
+            url: `/edit/${id}`,
+            method: 'PUT',
+            body: formData, // no content-type header
+          };
+        }
+
+        // fallback to sending JSON body if provided
+        return {
+          url: `/edit/${id}`,
+          method: 'PUT',
+          body: JSON.stringify(body ?? {}),
+          headers: { 'Content-Type': 'application/json' },
+        };
+      },
       invalidatesTags: ['Books'],
     }),
 

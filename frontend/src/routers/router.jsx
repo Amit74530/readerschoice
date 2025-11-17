@@ -7,7 +7,8 @@ import App from "../App";
 import Home from "../pages/home/Home";
 import Login from "../components/Login";
 import Register from "../components/Register";
-import AllBooks from "../pages/books/AllBooks"; // ✅ NEW PAGE
+import AllBooks from "../pages/books/AllBooks";
+import SingleBook from "../pages/books/SingleBook"; // ← single book page
 
 // ROUTES
 import PrivateRoute from "./PrivateRoute";
@@ -29,10 +30,10 @@ const router = createBrowserRouter([
       // HOME PAGE
       { path: "", element: <Home /> },
 
-      // ✅ NEW: ALL BOOKS PAGE
+      // Books listing and single-book route
       { path: "books", element: <AllBooks /> },
+      { path: "books/:id", element: <SingleBook /> },
 
-     
       // OTHER BASIC ROUTES
       { path: "about", element: <div>About</div> },
       { path: "login", element: <Login /> },

@@ -1,34 +1,76 @@
 import React, { useEffect, useState } from 'react';
 import InputField from '../addBook/InputField';
-import SelectField from '../addBook/SelectField';
 import { useForm } from 'react-hook-form';
 import { useParams } from 'react-router-dom';
 import { useFetchBookByIdQuery } from '../../../redux/features/books/booksApi';
 import Loading from '../../../components/Loading';
 import Swal from 'sweetalert2';
 
-// ✅ Helper function to handle multipart PUT with Cloudinary
+const CATEGORY_OPTIONS = [
+  { value: "fiction", label: "Fiction" },
+  { value: "non-fiction", label: "Non-Fiction" },
+  { value: "science", label: "Science" },
+  { value: "technology", label: "Technology" },
+  { value: "romance", label: "Romance" },
+  { value: "history", label: "History" },
+  { value: "children", label: "Children’s Books" },
+  { value: "biography", label: "Biography" },
+  { value: "mystery", label: "Mystery" },
+  { value: "thriller", label: "Thriller" },
+  { value: "horror", label: "Horror" },
+  { value: "fantasy", label: "Fantasy" },
+  { value: "adventure", label: "Adventure" },
+  { value: "poetry", label: "Poetry" },
+  { value: "comics", label: "Manga / Comics" },
+  { value: "education", label: "Education" },
+  { value: "philosophy", label: "Philosophy" },
+  { value: "business", label: "Business & Economics" },
+  { value: "self-help", label: "Self Help" },
+  { value: "health-fitness", label: "Health & Fitness" },
+  { value: "spirituality", label: "Religious / Spiritual" },
+  { value: "politics", label: "Politics" },
+  { value: "travel", label: "Travel & Adventure" },
+  { value: "cookbooks", label: "Cookbooks" },
+  { value: "art", label: "Art & Photography" },
+  { value: "drama", label: "Drama" },
+  { value: "science-fiction", label: "Science Fiction" },
+  { value: "engineering", label: "Engineering" },
+  { value: "programming", label: "Programming" },
+  { value: "ai-ml", label: "AI & Machine Learning" },
+  { value: "data-science", label: "Data Science" },
+  { value: "mathematics", label: "Mathematics" },
+];
+
 async function submitEditBook(bookId, token, fields, file) {
   const fd = new FormData();
-  if (fields.title) fd.append('title', fields.title);
-  if (fields.author) fd.append('author', fields.author);
-  if (fields.description) fd.append('description', fields.description);
-  if (fields.category) fd.append('category', fields.category);
-  if (fields.newPrice) fd.append('newPrice', fields.newPrice);
-  if (fields.oldPrice) fd.append('oldPrice', fields.oldPrice);
-  if (fields.count) fd.append('count', fields.count);
-  if (fields.trending !== undefined) fd.append('trending', fields.trending);
-  if (file) fd.append('cover', file); // file from input
+  if (fields.title !== undefined) fd.append('title', fields.title);
+  if (fields.author !== undefined) fd.append('author', fields.author);
+  if (fields.description !== undefined) fd.append('description', fields.description);
+  if (fields.category !== undefined) fd.append('category', JSON.stringify(fields.category));
+  if (fields.newPrice !== undefined) fd.append('newPrice', fields.newPrice);
+  if (fields.oldPrice !== undefined) fd.append('oldPrice', fields.oldPrice);
+  if (fields.count !== undefined) fd.append('count', fields.count);
+  if (fields.trending !== undefined) fd.append('trending', fields.trending ? 'true' : 'false');
+  if (file) fd.append('cover', file);
 
   const res = await fetch(`${import.meta.env.VITE_API_URL}/api/books/edit/${bookId}`, {
     method: 'PUT',
     headers: {
-      Authorization: `Bearer ${token}`, // DO NOT add Content-Type manually
+      Authorization: `Bearer ${token}`, // DO NOT set Content-Type
     },
     body: fd,
   });
 
-  return res.json();
+  // Safe parse
+  const contentType = res.headers.get('content-type') || '';
+  let payload;
+  if (contentType.includes('application/json')) {
+    payload = await res.json();
+  } else {
+    payload = { message: await res.text() };
+  }
+
+  return { ok: res.ok, status: res.status, payload };
 }
 
 const UpdateBook = () => {
@@ -36,45 +78,50 @@ const UpdateBook = () => {
   const { data: bookData, isLoading, isError, refetch } = useFetchBookByIdQuery(id);
   const { register, handleSubmit, setValue, formState: { errors } } = useForm();
   const [file, setFile] = useState(null);
+  const [selectedTags, setSelectedTags] = useState([]);
 
   useEffect(() => {
     if (bookData) {
       setValue('title', bookData.title);
       setValue('author', bookData.author);
       setValue('description', bookData.description);
-      setValue('category', bookData?.category);
       setValue('trending', !!bookData.trending);
       setValue('count', bookData.count ?? 0);
       setValue('oldPrice', bookData.oldPrice);
       setValue('newPrice', bookData.newPrice);
+
+      const cats = Array.isArray(bookData.category) ? bookData.category : (bookData.category ? [bookData.category] : []);
+      setSelectedTags(cats);
     }
   }, [bookData, setValue]);
+
+  const toggleTag = (value) => {
+    setSelectedTags(prev => (prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value]));
+  };
 
   const onSubmit = async (data) => {
     const token = localStorage.getItem('token');
     const updatePayload = {
       ...data,
-      oldPrice: Number(data.oldPrice),
-      newPrice: Number(data.newPrice),
-      count: Number(data.count ?? 0),
+      oldPrice: data.oldPrice !== undefined ? Number(data.oldPrice) : undefined,
+      newPrice: data.newPrice !== undefined ? Number(data.newPrice) : undefined,
+      count: data.count !== undefined ? Number(data.count) : undefined,
       trending: data.trending || false,
+      category: selectedTags,
     };
 
     try {
       const result = await submitEditBook(id, token, updatePayload, file);
-      if (result.book) {
-        await Swal.fire({
-          title: "Book Updated!",
-          text: "Your book details were updated successfully.",
-          icon: "success",
-        });
-        refetch();
-      } else {
-        throw new Error(result.message || 'Unknown error');
+      const { ok, payload } = result;
+      if (!ok) {
+        throw new Error(payload?.message || JSON.stringify(payload) || 'Update failed');
       }
+
+      await Swal.fire({ title: "Book Updated!", text: "Your book details were updated successfully.", icon: "success" });
+      refetch();
     } catch (error) {
       console.error("Update failed:", error);
-      Swal.fire("Error!", "Failed to update book. Please try again.", "error");
+      Swal.fire("Error!", error.message || "Failed to update book. Please try again.", "error");
     }
   };
 
@@ -91,54 +138,30 @@ const UpdateBook = () => {
         <InputField label="Copies (count)" name="count" type="number" placeholder="Number of copies" register={register} errors={errors} />
         <InputField label="Description" name="description" placeholder="Enter book description" type="textarea" register={register} errors={errors} />
 
-        <SelectField
-          label="Category"
-          name="category"
-          options={[
-            { value: "fiction", label: "Fiction" },
-            { value: "non-fiction", label: "Non-Fiction" },
-            { value: "science", label: "Science" },
-            { value: "technology", label: "Technology" },
-            { value: "romance", label: "Romance" },
-            { value: "history", label: "History" },
-            { value: "children", label: "Children’s Books" },
-            { value: "biography", label: "Biography" },
-            { value: "mystery", label: "Mystery" },
-            { value: "thriller", label: "Thriller" },
-            { value: "horror", label: "Horror" },
-            { value: "fantasy", label: "Fantasy" },
-            { value: "adventure", label: "Adventure" },
-            { value: "poetry", label: "Poetry" },
-            { value: "comics", label: "Manga / Comics" },
-            { value: "education", label: "Education" },
-            { value: "philosophy", label: "Philosophy" },
-            { value: "business", label: "Business & Economics" },
-            { value: "self-help", label: "Self Help" },
-            { value: "health-fitness", label: "Health & Fitness" },
-            { value: "spirituality", label: "Religious / Spiritual" },
-            { value: "politics", label: "Politics" },
-            { value: "travel", label: "Travel & Adventure" },
-            { value: "cookbooks", label: "Cookbooks" },
-            { value: "art", label: "Art & Photography" },
-            { value: "drama", label: "Drama" },
-            { value: "science-fiction", label: "Science Fiction" },
-            { value: "engineering", label: "Engineering" },
-            { value: "programming", label: "Programming" },
-            { value: "ai-ml", label: "AI & Machine Learning" },
-            { value: "data-science", label: "Data Science" },
-            { value: "mathematics", label: "Mathematics" },
-          ]}
-          register={register}
-          errors={errors}
-        />
+        {/* Tag picker inline */}
+        <div className="mb-4">
+          <label className="block text-sm font-semibold text-gray-700 mb-2">Genres</label>
+          <div className="flex flex-wrap gap-2">
+            {CATEGORY_OPTIONS.map(opt => {
+              const active = selectedTags.includes(opt.value);
+              return (
+                <button
+                  type="button"
+                  key={opt.value}
+                  onClick={() => toggleTag(opt.value)}
+                  className={`px-3 py-1 rounded-full text-sm border transition ${active ? 'bg-yellow-400 text-white border-yellow-400' : 'bg-white text-gray-700 border-gray-200'}`}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-xs text-gray-500 mt-2">Select one or more genres (optional).</p>
+        </div>
 
         <div className="mb-4">
           <label className="inline-flex items-center">
-            <input
-              type="checkbox"
-              {...register('trending')}
-              className="rounded text-blue-600 focus:ring focus:ring-offset-2 focus:ring-blue-500"
-            />
+            <input type="checkbox" {...register('trending')} className="rounded text-blue-600" />
             <span className="ml-2 text-sm font-semibold text-gray-700">Trending</span>
           </label>
         </div>
@@ -146,11 +169,11 @@ const UpdateBook = () => {
         <InputField label="Old Price (₹)" name="oldPrice" type="number" placeholder="Old Price" register={register} errors={errors} />
         <InputField label="New Price (₹)" name="newPrice" type="number" placeholder="New Price" register={register} errors={errors} />
 
-        {/* ✅ New file input field */}
         <div className="mb-4">
-          <label className="block font-semibold text-gray-700 mb-2">Update Cover Image</label>
+          <label className="block font-semibold text-gray-700 mb-2">Update Cover Image (optional)</label>
           <input type="file" accept="image/*" onChange={(e) => setFile(e.target.files[0])} />
           {file && <p className="text-sm text-gray-500 mt-1">Selected: {file.name}</p>}
+          <p className="text-xs text-gray-500 mt-1">Leave blank to keep current cover.</p>
         </div>
 
         <button type="submit" className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-md transition-colors">

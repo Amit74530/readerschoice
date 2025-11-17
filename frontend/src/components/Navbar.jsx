@@ -1,4 +1,5 @@
 // src/components/Navbar.jsx
+
 import { Link } from "react-router-dom";
 import { HiMiniBars3CenterLeft } from "react-icons/hi2";
 import { IoSearchOutline } from "react-icons/io5";
