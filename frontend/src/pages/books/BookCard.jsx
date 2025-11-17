@@ -1,13 +1,11 @@
 // src/pages/books/BookCard.jsx
 import React from "react";
 import { FaWhatsapp } from "react-icons/fa";
+import { Link } from "react-router-dom";
 import getImgUrl from "../../utils/getImgUrl";
 import { useAuth } from "../../context/AuthContext";
 
-const WHATSAPP_NUMBER =
-  import.meta.env.VITE_API_BASE_URL ||
-  import.meta.env.VITE_WHATSAPP_NUMBER || 
-  "";
+const WHATSAPP_NUMBER = import.meta.env.VITE_WHATSAPP_NUMBER || import.meta.env.VITE_WhatsApp_NUMBER || "";
 
 const formatINR = (value) => {
   try {
@@ -23,52 +21,64 @@ const formatINR = (value) => {
 const BookCard = ({ book }) => {
   const { currentUser } = useAuth?.() ?? {};
 
-  const handleInterestedClick = (e) => {
-    e?.stopPropagation?.();
-    const message = encodeURIComponent(
-      `Hi! I'm interested in the book: "${book.title}" by ${book.author || "Unknown"}.`
-    );
-    const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${message}`;
-    window.open(url, "_blank");
-  };
-
   const stockCount = book?.count ?? book?.stock ?? book?.quantity ?? 0;
   const isAvailable = Number(stockCount) > 0;
+
   const imgSrc = book?.coverImage
     ? getImgUrl(book.coverImage)
     : "https://placehold.co/240x320/ddd/777?text=No+Image";
+
+  // Buy handler (WhatsApp)
+  const handleBuyClick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (!isAvailable) return;
+
+    const message = encodeURIComponent(
+      `Hi! I'm interested in the book: "${book?.title || 'Untitled'}" by ${book?.author || 'Unknown'}.`
+    );
+    window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${message}`, "_blank");
+  };
 
   return (
     <article
       className="
         w-full
-        max-w-[140px] sm:max-w-[170px] md:max-w-[200px] lg:max-w-[220px]
-        bg-white rounded-lg shadow-sm hover:shadow-md transition-transform hover:-translate-y-0.5
-        cursor-default
+        max-w-[200px] sm:max-w-[220px] md:max-w-[240px]
+        bg-white rounded-lg shadow-sm hover:shadow-md
+        transition-transform hover:-translate-y-0.5
+        cursor-default flex flex-col
       "
+      aria-labelledby={`book-title-${book?._id}`}
     >
-      <div className="w-full aspect-[3/4] bg-gray-50 rounded-t-lg overflow-hidden flex items-center justify-center">
-        <img
-          src={imgSrc}
-          alt={book?.title || "Book cover"}
-          className="w-full h-full object-cover object-center transition-transform duration-300 hover:scale-105"
-          onError={(e) =>
-            (e.target.src =
-              "https://placehold.co/240x320/ddd/777?text=No+Image")
-          }
-          draggable={false}
-        />
-      </div>
+      {/* IMAGE (only this is clickable) */}
+      <Link to={`/books/${book?._id}`} className="block rounded-t-lg overflow-hidden" aria-label={`Open details for ${book?.title || 'book'}`}>
+        <div className="w-full h-[240px] sm:h-[260px] bg-gray-50 flex items-center justify-center">
+          <img
+            src={imgSrc}
+            alt={book?.title || "Book cover"}
+            className="w-full h-full object-cover object-center"
+            onError={(e) =>
+              (e.target.src =
+                "https://placehold.co/240x320/ddd/777?text=No+Image")
+            }
+            draggable={false}
+          />
+        </div>
+      </Link>
 
-      <div className="p-2.5 sm:p-3">
-        <h3 className="text-sm sm:text-base font-semibold text-gray-800 mb-1 line-clamp-2">
+      {/* CONTENT */}
+      <div className="p-3 flex flex-col flex-grow">
+        <h3 id={`book-title-${book?._id}`} className="text-sm sm:text-base font-semibold text-gray-800 line-clamp-2 min-h-[48px]">
           {book?.title || "Untitled"}
         </h3>
+
         <p className="text-xs sm:text-sm text-gray-500 mb-1">
           by {book?.author || "Unknown"}
         </p>
 
-        <p className="text-xs text-gray-600 mb-2 line-clamp-3">
+        <p className="text-xs text-gray-600 mb-2 line-clamp-3 min-h-[56px]">
           {book?.description
             ? book.description.length > 80
               ? `${book.description.slice(0, 80)}...`
@@ -76,7 +86,7 @@ const BookCard = ({ book }) => {
             : "No description available."}
         </p>
 
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center justify-between mt-auto">
           <div>
             <p
               className={`text-xs sm:text-sm font-medium ${
@@ -85,8 +95,17 @@ const BookCard = ({ book }) => {
             >
               {isAvailable ? `In Stock (${stockCount})` : "Currently Borrowed"}
             </p>
-            <p className="text-xs text-gray-500 capitalize">
-              {book?.category || "Uncategorized"}
+             <p
+              className="
+                text-xs text-gray-500 capitalize
+                line-clamp-1
+                max-h-[16px]
+                overflow-hidden
+              "
+            >
+              {Array.isArray(book?.category)
+                ? book.category.join(", ")
+                : book?.category || "Uncategorized"}
             </p>
           </div>
 
@@ -101,23 +120,32 @@ const BookCard = ({ book }) => {
             ) : null}
           </div>
         </div>
-
-        <div className="flex items-center justify-center">
-          <button
-            onClick={handleInterestedClick}
-            disabled={!isAvailable}
-            className="
-              inline-flex items-center gap-1.5
-              px-2 py-1 text-xs rounded bg-green-600 text-white
-              hover:bg-green-700 disabled:opacity-50
-            "
-            title={isAvailable ? "Send WhatsApp message to owner" : "Not available"}
-          >
-            <FaWhatsapp className="w-3.5 h-3.5" />
-            <span className="text-xs">I'm Interested</span>
-          </button>
-        </div>
       </div>
+
+      {/* BUY NOW BAR */}
+      <button
+        type="button"
+        onClick={handleBuyClick}
+        disabled={!isAvailable}
+        className={`
+          w-full
+          border border-yellow-400
+          bg-yellow-100
+          text-yellow-900
+          font-semibold
+          text-center
+          py-2
+          rounded-b-lg
+          hover:bg-yellow-200
+          transition
+          flex items-center justify-center gap-2
+          ${!isAvailable ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}
+        `}
+        aria-disabled={!isAvailable}
+      >
+        <FaWhatsapp className="w-4 h-4" />
+        <span className="text-sm">Buy Now</span>
+      </button>
     </article>
   );
 };
