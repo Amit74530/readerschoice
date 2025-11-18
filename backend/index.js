@@ -8,48 +8,47 @@ require("dotenv").config();
 
 const port = process.env.PORT || 5000;
 
-// ---------------------- ROUTES ----------------------
+// ---------- Route imports ----------
 const bookRoutes = require("./src/books/book.route");
 const userRoutes = require("./src/users/user.route");
 const adminRoutes = require("./src/stats/admin.stats");
 const testimonialRoutes = require("./src/testimonials/testimonial.route");
 
-// Firebase auth optional
+// optional firebase-login route
 let firebaseAuthRoutes;
 try {
   firebaseAuthRoutes = require("./src/auth/firebase-login.route");
-} catch {
+} catch (err) {
   firebaseAuthRoutes = null;
 }
 
-// ---------------------- FINAL CORS CONFIG ----------------------
-/**
- * Your frontend origins:
- *  - Production: https://readerschoice.vercel.app
- *  - Local dev: http://localhost:5173 etc.
- */
-const ALLOWED_ORIGINS = [
-  "https://readerschoice.vercel.app",
+// ---------- JSON parser ----------
+app.use(express.json());
+
+// ---------- CORS configuration ----------
+const DEFAULT_ALLOWED = [
+  "https://readerschoice.vercel.app",   // production frontend
+  // add any specific Vercel preview domains here if needed
   "http://localhost:5173",
   "http://127.0.0.1:5173",
   "http://localhost:5174",
   "http://127.0.0.1:5174",
 ];
 
-// Allow adding more through environment variable
-const extra = (process.env.ALLOWED_ORIGINS || "")
+// allow extra origins via environment variable (comma-separated)
+const envAllowed = (process.env.ALLOWED_ORIGINS || "")
   .split(",")
   .map(s => s.trim())
   .filter(Boolean);
 
-const FINAL_ALLOWED = Array.from(new Set([...ALLOWED_ORIGINS, ...extra]));
+const FINAL_ALLOWED = Array.from(new Set([...DEFAULT_ALLOWED, ...envAllowed]));
 
 const corsOptions = {
   origin: function (origin, callback) {
-    if (!origin) return callback(null, true); // server-to-server
+    // allow non-browser requests (curl, Postman) that have no origin
+    if (!origin) return callback(null, true);
     if (FINAL_ALLOWED.includes(origin)) return callback(null, true);
-
-    console.warn("❌ Blocked CORS:", origin);
+    console.warn("❌ Blocked CORS request from:", origin);
     return callback(new Error("Not allowed by CORS"), false);
   },
   credentials: true,
@@ -63,31 +62,57 @@ const corsOptions = {
   ],
 };
 
-// Preflight for ALL routes
-app.options("*", cors(corsOptions));
+// ---------- Always-respond preflight + minimal CORS headers (fix for Render & proxies) ----------
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && FINAL_ALLOWED.includes(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+    res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
+    res.setHeader(
+      "Access-Control-Allow-Headers",
+      "Origin, X-Requested-With, Content-Type, Accept, Authorization"
+    );
+  } else if (!origin) {
+    // non-browser clients (curl, server-to-server) — allow
+    res.setHeader("Access-Control-Allow-Origin", "*");
+  }
 
-// Apply CORS globally
+  // Reply to preflight immediately so proxies/frontends get the CORS headers even if route crashes
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
+// Apply standard cors middleware (keeps behavior consistent for actual requests)
+app.options("*", cors(corsOptions));
 app.use(cors(corsOptions));
 
-// Parse JSON
-app.use(express.json());
+// ---------- Optional debug endpoint (temporary) ----------
+app.get("/_cors-test", (req, res) => {
+  res.json({ ok: true, originSeen: req.headers.origin || null });
+});
 
-// ---------------------- STATIC FILES ----------------------
+// ---------- Serve uploaded images ----------
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-// ---------------------- ROUTES ----------------------
+// ---------- Mount routes ----------
 app.use("/api/books", bookRoutes);
 app.use("/api/auth", userRoutes);
 
 if (firebaseAuthRoutes) {
   app.use("/api/auth", firebaseAuthRoutes);
-  console.log("Mounted /api/auth/firebase-login");
+  console.log("Mounted /api/auth/firebase-login route");
+} else {
+  console.log("firebase-login.route not found — skipping mount.");
 }
 
 app.use("/api/admin", adminRoutes);
 app.use("/api/testimonials", testimonialRoutes);
+console.log("Mounted /api/testimonials route");
 
-// ---------------------- DEV LOGIN ROUTE ----------------------
+// ---------- DEV-only quick-login (remove in production) ----------
 try {
   const jwt = require("jsonwebtoken");
   const User = require("./src/users/user.model");
@@ -96,48 +121,55 @@ try {
     try {
       const { userId } = req.body;
       if (!userId) return res.status(400).json({ message: "userId required" });
-
       const user = await User.findById(userId);
       if (!user) return res.status(404).json({ message: "User not found" });
-
       const token = jwt.sign(
         { id: user._id.toString(), role: user.role || "user" },
         process.env.JWT_SECRET_KEY,
         { expiresIn: "7d" }
       );
-
       return res.json({ token, user });
     } catch (err) {
       console.error("dev-login error", err);
-      res.status(500).json({ message: "dev-login failed" });
+      return res.status(500).json({ message: "dev-login failed" });
     }
   });
 
   console.log("Mounted /api/auth/dev-login (DEV ONLY)");
-} catch {
-  console.log("⚠️ dev-login route skipped");
+} catch (err) {
+  console.warn("Could not mount dev-login route:", err.message || err);
 }
 
-// ---------------------- HEALTH ROUTE ----------------------
-app.get("/", (req, res) => {
-  res.send("Book Store Server is running!");
+// ---------- Root route ----------
+app.get("/", (req, res) => res.send("Book Store Server is running!"));
+
+// ---------- Error handler (ensures CORS headers on errors) ----------
+app.use((err, req, res, next) => {
+  console.error("[UNHANDLED ERROR]", err && err.stack ? err.stack : err);
+  const origin = req.headers.origin;
+  if (origin && FINAL_ALLOWED.includes(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+  } else if (!origin) {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+  }
+  res.status(500).json({ error: "internal server error" });
 });
 
-// ---------------------- START SERVER ----------------------
+// ---------- Start server & connect DB ----------
 async function main() {
   try {
     await mongoose.connect(process.env.DB_URL, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
     });
-
     console.log("✅ MongoDB connected");
 
-    app.listen(port, () =>
-      console.log(`🚀 Server running at port ${port}`)
-    );
+    app.listen(port, () => {
+      console.log(`🚀 Server listening on port ${port}`);
+    });
   } catch (err) {
-    console.error("❌ Server failed to start:", err);
+    console.error("❌ Failed to start server:", err);
     process.exit(1);
   }
 }
