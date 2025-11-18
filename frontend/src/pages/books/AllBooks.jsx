@@ -202,9 +202,9 @@ const AllBooks = () => {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 place-items-center">
+          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 gap-4">
             {visibleBooks.map((book) => (
-              <div key={book._id} className="flex justify-center">
+              <div key={book._id} className="flex justify-center w-full">
                 <BookCard book={book} />
               </div>
             ))}
