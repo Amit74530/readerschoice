@@ -21,17 +21,32 @@ try {
   firebaseAuthRoutes = null;
 }
 
-// --- ✅ FIXED CORS SETUP ---
-const allowedOrigins = [
-  "https://readerschoice.vercel.app",
+// --- ✅ FLEXIBLE CORS SETUP (supports env + safe defaults) ---
+const DEFAULT_ALLOWED = [
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
   "http://localhost:5174",
+  "http://127.0.0.1:5174",
+  "https://readerschoice.vercel.app",
+  "https://readerschoice-frontend.vercel.app", // replace with your actual Vercel domain if different
+  "https://readerschoice-ip2w.onrender.com"   // backend or other domain if needed
 ];
+
+// Read extra allowed origins from .env (comma separated)
+const envAllowed = (process.env.ALLOWED_ORIGINS || "")
+  .split(",")
+  .map(s => s.trim())
+  .filter(Boolean);
+
+// merge unique list
+const ALLOWED = Array.from(new Set([...DEFAULT_ALLOWED, ...envAllowed]));
 
 const corsOptions = {
   origin: function (origin, callback) {
-    // Allow requests with no origin (curl, mobile apps)
+    // allow requests with no origin (curl, Postman, mobile apps, server-to-server)
     if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) return callback(null, true);
+
+    if (ALLOWED.includes(origin)) return callback(null, true);
 
     console.warn("❌ Blocked CORS request from:", origin);
     return callback(new Error("Not allowed by CORS"), false);
@@ -47,9 +62,11 @@ const corsOptions = {
   ],
 };
 
-// ✅ Apply CORS before all routes
+// allow preflight on all routes
+app.options("*", cors(corsOptions));
+
 app.use(cors(corsOptions));
-app.use(express.json());
+
 
 // --- Serve uploaded images publicly ---
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
