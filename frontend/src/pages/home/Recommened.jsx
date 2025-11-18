@@ -19,6 +19,13 @@ const Recommended = () => {
   const trending = books.filter((b) => b?.trending);
   const recommendedBooks = trending.length > 0 ? trending : books.slice(0, 12);
 
+  // maximum slides we want to show at once (cap at 5)
+  const maxSlides = Math.min(recommendedBooks.length, 5);
+
+  // If only a single book exists, Swiper will naturally show just that one.
+  // Optionally loop when we have enough items for nicer UX on desktop.
+  const enableLoop = recommendedBooks.length > 4;
+
   return (
     <div className="py-8">
       <h2 className="text-2xl sm:text-3xl font-semibold mb-6">Recommended for You</h2>
@@ -27,17 +34,21 @@ const Recommended = () => {
         <p className="text-gray-500">No books to recommend right now.</p>
       ) : (
         <Swiper
-          slidesPerView={1.05}        // show nearly one card, slight peek
-          spaceBetween={6}            // minimal gap on smallest screens
+          // default for the smallest screens — a tiny peek of next slide
+          slidesPerView={Math.min(maxSlides, 1.05)}
+          spaceBetween={12}
           navigation={true}
           pagination={{ clickable: true }}
+          loop={enableLoop}
           breakpoints={{
-            480:  { slidesPerView: 1.3, spaceBetween: 6 },
-            640:  { slidesPerView: 1.6, spaceBetween: 8 },
-            768:  { slidesPerView: 1.95, spaceBetween: 8 }, // tight for two-up
-            900:  { slidesPerView: 2.2, spaceBetween: 10 },
-            1024: { slidesPerView: 3,   spaceBetween: 10 },
-            1280: { slidesPerView: 4,   spaceBetween: 12 },
+            // show up to 2 on small phones (if available)
+            480:  { slidesPerView: Math.min(maxSlides, 2), spaceBetween: 12 },
+            // tablets -> up to 3
+            640:  { slidesPerView: Math.min(maxSlides, 3), spaceBetween: 12 },
+            // small laptops -> up to 4
+            900:  { slidesPerView: Math.min(maxSlides, 4), spaceBetween: 14 },
+            // large screens -> up to 5
+            1280: { slidesPerView: Math.min(maxSlides, 5), spaceBetween: 16 },
           }}
           modules={[Pagination, Navigation]}
           className="mySwiper"
@@ -45,7 +56,7 @@ const Recommended = () => {
           {recommendedBooks.map((book) => (
             <SwiperSlide
               key={book?._id || book?.id}
-              className="flex justify-center !w-auto" // center slide content
+              className="flex justify-center !w-auto"
             >
               <div className="w-full max-w-[260px]">
                 <BookCard book={book} />
