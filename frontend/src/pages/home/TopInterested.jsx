@@ -20,10 +20,34 @@ const TopInterested = () => {
   const [selectedCategory, setSelectedCategory] = useState("Choose a genre");
   const { data: books = [] } = useFetchAllBooksQuery();
 
+  // --- SAFE CATEGORY MATCHER ---
+  const matchesCategory = (cat, selected) => {
+    if (!selected || selected === "Choose a genre") return true;
+
+    if (cat == null) return false;
+
+    // if category is a plain string
+    if (typeof cat === "string") 
+      return cat.toLowerCase() === selected.toLowerCase();
+
+    // if category is an array (["Fiction", "Mystery"])
+    if (Array.isArray(cat)) {
+      return cat.some(
+        (c) => typeof c === "string" && c.toLowerCase() === selected.toLowerCase()
+      );
+    }
+
+    // fallback (object/number)
+    return String(cat).toLowerCase() === selected.toLowerCase();
+  };
+
+  // --- APPLY FILTER SAFELY ---
   const filteredBooks =
     selectedCategory === "Choose a genre"
       ? books
-      : books.filter((book) => (book?.category || "").toLowerCase() === selectedCategory.toLowerCase());
+      : books.filter((book) =>
+          matchesCategory(book?.category, selectedCategory)
+        );
 
   return (
     <div className="py-8">
