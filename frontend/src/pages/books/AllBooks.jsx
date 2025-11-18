@@ -278,7 +278,7 @@ const AllBooks = () => {
           <div className="grid **grid-cols-2** sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {visibleBooks.map((book) => (
               <div key={book._id} className="flex justify-center w-full">
-                <div className="w-full max-w-[240px]">
+                <div className="w-full">
                   <BookCard book={book} />
                 </div>
               </div>
