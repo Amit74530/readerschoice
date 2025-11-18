@@ -1,9 +1,9 @@
 // src/pages/books/AllBooks.jsx
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useEffect, useState } from "react";
 import { useFetchAllBooksQuery } from "../../redux/features/books/booksApi";
 import Loading from "../../components/Loading";
 import BookCard from "./BookCard";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 
 const PAGE_SIZE = 12;
 
@@ -50,24 +50,20 @@ const normalize = (s) =>
     .toLowerCase();
 
 const bookHasCategory = (book, selectedTags) => {
-  // selectedTags: array of values (strings). If empty -> match all.
   if (!selectedTags || selectedTags.length === 0) return true;
 
   const cat = book?.category;
   if (!cat) return false;
 
-  // normalize book categories to array of lowercase values
   let arr = [];
   if (Array.isArray(cat)) {
     arr = cat.map((c) => normalize(c));
   } else if (typeof cat === "string") {
-    // it could be JSON string like '["fiction","romance"]' or comma-separated or a single value
     try {
       const parsed = JSON.parse(cat);
       if (Array.isArray(parsed)) arr = parsed.map((c) => normalize(c));
       else arr = [normalize(cat)];
     } catch {
-      // not JSON - split by comma (if present) or treat as single
       if (cat.includes(",")) {
         arr = cat.split(",").map((c) => normalize(c));
       } else {
@@ -78,30 +74,91 @@ const bookHasCategory = (book, selectedTags) => {
     return false;
   }
 
-  // book matches if it contains ALL selected tags (AND behaviour)
   return selectedTags.every((t) => arr.includes(normalize(t)));
+};
+
+/* ---------- Small pagination helper UI logic ---------- */
+const getPageRange = (current, total, maxButtons = 7) => {
+  // returns array of page numbers or '...' strings
+  const pages = [];
+  if (total <= maxButtons) {
+    for (let i = 1; i <= total; i++) pages.push(i);
+    return pages;
+  }
+
+  const left = Math.max(2, current - 1);
+  const right = Math.min(total - 1, current + 1);
+
+  pages.push(1);
+  if (left > 2) pages.push("...");
+  for (let i = left; i <= right; i++) pages.push(i);
+  if (right < total - 1) pages.push("...");
+  pages.push(total);
+
+  return pages;
 };
 
 const AllBooks = () => {
   const { data: books = [], isLoading, isError, refetch } = useFetchAllBooksQuery();
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
-  const [query, setQuery] = useState("");
-  const [selectedTags, setSelectedTags] = useState([]); // array of genre values
+  const [queryParams, setQueryParams] = useSearchParams();
+  const pageParam = parseInt(queryParams.get("page") || "1", 10);
+  const [page, setPage] = useState(Number.isNaN(pageParam) || pageParam < 1 ? 1 : pageParam);
+
+  const [query, setQuery] = useState(queryParams.get("q") || "");
+  const [selectedTags, setSelectedTags] = useState(
+    queryParams.getAll("tag").length ? queryParams.getAll("tag") : []
+  );
+
+  // Keep URL and state in sync: when URL page changes externally, update local page
+  useEffect(() => {
+    const p = parseInt(queryParams.get("page") || "1", 10);
+    setPage(Number.isNaN(p) || p < 1 ? 1 : p);
+    // sync q and tags if present in URL (optional)
+    const qFromUrl = queryParams.get("q") || "";
+    setQuery(qFromUrl);
+    const tagsFromUrl = queryParams.getAll("tag");
+    setSelectedTags(tagsFromUrl.length ? tagsFromUrl : []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queryParams.toString()]); // run when search params change
 
   const toggleTag = (value) => {
-    // if value is empty (All) -> clear tags
     if (!value) {
+      // clear tags and reset page & url
       setSelectedTags([]);
-      setVisibleCount(PAGE_SIZE);
+      setPage(1);
+      queryParams.delete("tag");
+      queryParams.set("page", "1");
+      setQueryParams(queryParams);
       return;
     }
 
     setSelectedTags((prev) => {
       const has = prev.includes(value);
       const next = has ? prev.filter((p) => p !== value) : [...prev, value];
-      setVisibleCount(PAGE_SIZE);
+      // update URL params
+      const newParams = new URLSearchParams(queryParams.toString());
+      newParams.set("page", "1");
+      newParams.delete("tag");
+      next.forEach((t) => newParams.append("tag", t));
+      setQueryParams(newParams);
+      setPage(1);
       return next;
     });
+  };
+
+  // When user types in search, reset to page 1 and sync url (debounce omitted for brevity)
+  const onSearchChange = (val) => {
+    setQuery(val);
+    setPage(1);
+    const newParams = new URLSearchParams(queryParams.toString());
+    if (val) newParams.set("q", val);
+    else newParams.delete("q");
+    newParams.set("page", "1");
+    // keep existing tags if any
+    // remove old tags and re-add from state
+    newParams.delete("tag");
+    selectedTags.forEach((t) => newParams.append("tag", t));
+    setQueryParams(newParams);
   };
 
   // filtered list based on search + category tags (case-insensitive)
@@ -119,7 +176,28 @@ const AllBooks = () => {
     });
   }, [books, query, selectedTags]);
 
-  const visibleBooks = useMemo(() => filtered.slice(0, visibleCount), [filtered, visibleCount]);
+  // total pages
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+
+  // clamp page
+  useEffect(() => {
+    let p = page;
+    if (p > totalPages) p = totalPages;
+    if (p < 1) p = 1;
+    if (p !== page) setPage(p);
+
+    // keep URL updated when internal page changes
+    const newParams = new URLSearchParams(queryParams.toString());
+    newParams.set("page", String(p));
+    setQueryParams(newParams, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, totalPages]);
+
+  // slice visible books for current page
+  const visibleBooks = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return filtered.slice(start, start + PAGE_SIZE);
+  }, [filtered, page]);
 
   if (isLoading) return <Loading />;
 
@@ -145,14 +223,10 @@ const AllBooks = () => {
         </div>
 
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-          {/* search input */}
           <input
             type="text"
             value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setVisibleCount(PAGE_SIZE);
-            }}
+            onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Search by title or author..."
             className="px-3 py-2 border rounded w-60 text-sm focus:outline-none"
           />
@@ -166,7 +240,6 @@ const AllBooks = () => {
         </div>
       </div>
 
-      {/* TAG PICKER */}
       <div className="mb-6">
         <div className="flex flex-wrap gap-2">
           {GENRE_OPTIONS.map((g) => {
@@ -202,24 +275,52 @@ const AllBooks = () => {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {visibleBooks.map((book) => (
               <div key={book._id} className="flex justify-center w-full">
-                <BookCard book={book} />
+                <div className="w-full max-w-[240px]">
+                  <BookCard book={book} />
+                </div>
               </div>
             ))}
           </div>
 
-          {visibleCount < filtered.length && (
-            <div className="text-center mt-8">
-              <button
-                onClick={() => setVisibleCount((c) => Math.min(filtered.length, c + PAGE_SIZE))}
-                className="px-6 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
-              >
-                Load more
-              </button>
-            </div>
-          )}
+          {/* Pagination controls */}
+          <div className="flex items-center justify-center mt-8 space-x-2">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page <= 1}
+              className={`px-3 py-1 rounded border ${page <= 1 ? "opacity-50 cursor-not-allowed" : "hover:bg-gray-100"}`}
+            >
+              Prev
+            </button>
+
+            {getPageRange(page, totalPages, 7).map((p, idx) =>
+              p === "..." ? (
+                <span key={`ellipsis-${idx}`} className="px-2">…</span>
+              ) : (
+                <button
+                  key={p}
+                  onClick={() => setPage(p)}
+                  className={`px-3 py-1 rounded border ${p === page ? "bg-indigo-600 text-white border-indigo-600" : "hover:bg-gray-100"}`}
+                >
+                  {p}
+                </button>
+              )
+            )}
+
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page >= totalPages}
+              className={`px-3 py-1 rounded border ${page >= totalPages ? "opacity-50 cursor-not-allowed" : "hover:bg-gray-100"}`}
+            >
+              Next
+            </button>
+          </div>
+
+          <div className="text-center text-sm text-gray-500 mt-3">
+            Showing <strong>{visibleBooks.length}</strong> of <strong>{filtered.length}</strong> results — Page <strong>{page}</strong> of <strong>{totalPages}</strong>
+          </div>
         </>
       )}
     </div>
