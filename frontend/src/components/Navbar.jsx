@@ -1,22 +1,23 @@
 // src/components/Navbar.jsx
-
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { HiMiniBars3CenterLeft } from "react-icons/hi2";
 import { IoSearchOutline } from "react-icons/io5";
 import { HiOutlineUser } from "react-icons/hi";
 import avatarImg from "../assets/avatar.png";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useFetchAllBooksQuery } from "../redux/features/books/booksApi";
+
+const BOOK_ROUTE_BASE = "/books"; // keep "/books" to match router.jsx
 
 const Navbar = () => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [showResults, setShowResults] = useState(false);
-
+  const searchInputRef = useRef(null);
   const { currentUser, logout } = useAuth();
-
   const { data: allBooks = [] } = useFetchAllBooksQuery();
+  const navigate = useNavigate();
 
   const handleLogOut = () => {
     logout();
@@ -29,6 +30,15 @@ const Navbar = () => {
           book.author?.toLowerCase().includes(query.toLowerCase()))
       )
     : [];
+
+  // Navigate safely to book page and close dropdown
+  const goToBook = (bookId) => {
+    if (!bookId) return;
+    navigate(`${BOOK_ROUTE_BASE}/${bookId}`);
+    setQuery("");
+    setShowResults(false);
+    try { document.activeElement?.blur?.(); } catch (e) {}
+  };
 
   return (
     <header className="max-w-screen-2xl mx-auto px-4 py-6">
@@ -43,6 +53,7 @@ const Navbar = () => {
           <div className="relative sm:w-72 w-40">
             <IoSearchOutline className="absolute left-3 top-2 text-gray-500" />
             <input
+              ref={searchInputRef}
               type="text"
               placeholder="Search books or author..."
               value={query}
@@ -51,7 +62,10 @@ const Navbar = () => {
                 setShowResults(true);
               }}
               onFocus={() => setShowResults(true)}
-              onBlur={() => setTimeout(() => setShowResults(false), 150)}
+              onBlur={() => {
+                // small delay ensures onMouseDown handlers run first
+                setTimeout(() => setShowResults(false), 150);
+              }}
               className="bg-[#EAEAEA] w-full py-1 md:px-8 px-6 rounded-md focus:outline-none"
             />
 
@@ -59,23 +73,35 @@ const Navbar = () => {
               <div className="absolute z-50 bg-white shadow-md rounded-md mt-2 w-full max-h-60 overflow-y-auto border">
                 {filteredBooks.length > 0 ? (
                   filteredBooks.slice(0, 6).map((book) => (
-                    <Link
+                    <div
                       key={book._id}
-                      to={`/books/${book._id}`}
-                      onClick={() => {
-                        setQuery("");
-                        setShowResults(false);
+                      role="button"
+                      tabIndex={0}
+                      onMouseDown={(e) => {
+                        // run before blur, preventing blur from closing dropdown early
+                        e.preventDefault();
+                        goToBook(book._id);
                       }}
-                      className="block px-3 py-2 hover:bg-gray-100 border-b last:border-none"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          goToBook(book._id);
+                        }
+                      }}
+                      className="block px-3 py-2 hover:bg-gray-100 border-b last:border-none cursor-pointer"
                     >
-                      <div className="text-sm font-semibold text-gray-800">{book.title}</div>
+                      <div className="text-sm font-semibold text-gray-800">
+                        {book.title}
+                      </div>
                       <div className="text-xs text-gray-500">
                         by {book.author || "Unknown"}
                       </div>
-                    </Link>
+                    </div>
                   ))
                 ) : (
-                  <div className="px-3 py-2 text-sm text-gray-500">No results found</div>
+                  <div className="px-3 py-2 text-sm text-gray-500">
+                    No results found
+                  </div>
                 )}
               </div>
             )}
