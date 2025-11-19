@@ -15,7 +15,16 @@ const {
 
 const { verifyAdmin } = require("../middleware/auth");
 
-// --- Cloudinary must be configured (both local + Render)
+// Fail fast if Cloudinary env vars missing on startup (so deployed server won't silently fallback)
+if (
+  !process.env.CLOUDINARY_CLOUD_NAME ||
+  !process.env.CLOUDINARY_API_KEY ||
+  !process.env.CLOUDINARY_API_SECRET
+) {
+  console.error("❌ Cloudinary env vars missing. Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET");
+  throw new Error("Cloudinary not configured");
+}
+
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
@@ -23,10 +32,9 @@ cloudinary.config({
   secure: true,
 });
 
-// --- Multer STORAGE (memory only — NO DISK /uploads)
+// Multer memory storage (no disk writes)
 const upload = multer({ storage: multer.memoryStorage() });
 
-// --- Upload buffer to Cloudinary
 function uploadToCloudinary(buffer, filename) {
   return new Promise((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
@@ -34,62 +42,44 @@ function uploadToCloudinary(buffer, filename) {
         folder: process.env.CLOUDINARY_FOLDER || "book_covers",
         use_filename: true,
         unique_filename: false,
+        resource_type: "image",
       },
       (err, result) => {
-        if (err) reject(err);
-        else resolve(result);
+        if (err) return reject(err);
+        resolve(result);
       }
     );
-
     streamifier.createReadStream(buffer).pipe(stream);
   });
 }
 
-// --- Middleware to upload coverImage BEFORE controller runs
 async function uploadCover(req, res, next) {
   try {
-    if (!req.file) return next();
+    if (!req.file || !req.file.buffer) return next();
 
-    console.log("Uploading to Cloudinary:", req.file.originalname);
-
+    console.log("uploadCover: detected file", req.file.originalname, "size", req.file.size);
     const result = await uploadToCloudinary(req.file.buffer, req.file.originalname);
+    const url = result.secure_url || result.url;
 
-    req.body.coverImage = result.secure_url;
-    req.file.path = result.secure_url;
+    // normalize
+    req.file.path = url;
+    req.file.secure_url = url;
+    req.body = req.body || {};
+    req.body.cover = url;
+    req.body.coverImage = url;
 
-    console.log("Uploaded:", result.secure_url);
-
-    next();
+    console.log("uploadCover: uploaded to Cloudinary ->", url);
+    return next();
   } catch (err) {
-    console.error("Cloudinary upload error:", err.message);
-    return res.status(500).json({
-      message: "Failed to upload image to Cloudinary",
-      error: err.message,
-    });
+    console.error("uploadCover: Cloudinary upload failed:", err && (err.message || err));
+    return res.status(500).json({ message: "Failed to upload cover to Cloudinary", error: (err && err.message) || String(err) });
   }
 }
 
 const router = express.Router();
 
-// CREATE BOOK
-router.post(
-  "/create-book",
-  verifyAdmin,
-  upload.single("cover"),
-  uploadCover,
-  postABook
-);
-
-// UPDATE BOOK
-router.put(
-  "/edit/:id",
-  verifyAdmin,
-  upload.single("cover"),
-  uploadCover,
-  UpdateBook
-);
-
-// PUBLIC ROUTES
+router.post("/create-book", verifyAdmin, upload.single("cover"), uploadCover, postABook);
+router.put("/edit/:id", verifyAdmin, upload.single("cover"), uploadCover, UpdateBook);
 router.get("/", getAllBooks);
 router.get("/:id", getSingleBook);
 router.delete("/:id", verifyAdmin, deleteABook);
