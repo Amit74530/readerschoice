@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import InputField from './InputField';
 import { useForm } from 'react-hook-form';
 import Swal from 'sweetalert2';
+import { useAddBookMutation } from '../../../redux/features/books/booksApi'; // adjust path if necessary
 
 const CATEGORY_OPTIONS = [
   { value: "fiction", label: "Fiction" },
@@ -43,6 +44,7 @@ const AddBook = () => {
   const [file, setFile] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedTags, setSelectedTags] = useState([]);
+  const [addBook] = useAddBookMutation();
 
   const handleFileChange = (e) => {
     const f = e.target.files?.[0];
@@ -66,39 +68,35 @@ const AddBook = () => {
       if (data.title) fd.append('title', data.title);
       if (data.author) fd.append('author', data.author);
       fd.append('description', data.description || '');
-      fd.append('category', JSON.stringify(selectedTags || [])); // multi-tag as JSON string
+      fd.append('category', JSON.stringify(selectedTags || []));
       fd.append('trending', data.trending ? 'true' : 'false');
       if (data.oldPrice !== undefined && data.oldPrice !== '') fd.append('oldPrice', data.oldPrice);
       if (data.newPrice !== undefined && data.newPrice !== '') fd.append('newPrice', data.newPrice);
       fd.append('count', data.count ?? 1);
-      if (file) fd.append('cover', file); // optional
+      if (file) fd.append('cover', file);
 
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/books/create-book`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` }, // DO NOT set Content-Type for FormData
-        body: fd,
-      });
-
-      // Safe parse: JSON if available, otherwise text (HTML/error pages)
-      let payload;
-      const contentType = res.headers.get('content-type') || '';
-      if (contentType.includes('application/json')) {
-        payload = await res.json();
-      } else {
-        payload = { message: await res.text() };
+      // debug log
+      console.log('DEBUG: token present?', !!token);
+      for (const pair of fd.entries()) {
+        if (pair[1] instanceof File) {
+          console.log('FD entry:', pair[0], '=> File:', pair[1].name, pair[1].size, pair[1].type);
+        } else {
+          console.log('FD entry:', pair[0], '=>', pair[1]);
+        }
       }
 
-      if (!res.ok) {
-        throw new Error(payload?.message || JSON.stringify(payload) || 'Failed to create book');
-      }
+      // Use RTK mutation (handles FormData branch in booksApi)
+      const result = await addBook(fd).unwrap();
+      console.log('DEBUG: RTK result', result);
 
       await Swal.fire({ title: 'Book added', text: 'Your book is uploaded successfully!', icon: 'success' });
       reset();
       setFile(null);
       setSelectedTags([]);
+      // RTK invalidates "Books" tag so listing components using useFetchAllBooksQuery will refetch automatically
     } catch (err) {
       console.error('Add book failed', err);
-      Swal.fire({ title: 'Error!', text: err.message || 'Failed to add book. Please try again.', icon: 'error' });
+      Swal.fire({ title: 'Error!', text: err?.data?.message || err.message || 'Failed to add book. Please try again.', icon: 'error' });
     } finally {
       setIsLoading(false);
     }
