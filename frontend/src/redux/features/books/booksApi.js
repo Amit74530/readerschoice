@@ -6,10 +6,15 @@ const baseQuery = fetchBaseQuery({
   baseUrl: `${getBaseUrl()}/api/books`,
   credentials: 'include',
   prepareHeaders: (headers) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      headers.set('Authorization', `Bearer ${token}`);
+    const token = localStorage.getItem("token");
+
+    // FIX: Only set header if valid token exists
+    if (token && token !== "null" && token !== "undefined") {
+      headers.set("Authorization", `Bearer ${token}`);
+    } else {
+      headers.delete("Authorization");
     }
+
     return headers;
   },
 });
