@@ -1,5 +1,5 @@
 // backend/src/books/book.controller.js
-const Book = require("./book.model");
+const Book = require('./book.model');
 const mongoose = require('mongoose');
 const path = require('path');
 
@@ -53,10 +53,31 @@ function uploadedFileToPublicUrl(file) {
   return undefined;
 }
 
-// POST - create a new book (image optional, categories optional)
+/**
+ * GET - list all books
+ */
+const getAllBooks = async (req, res) => {
+  try {
+    const books = await Book.find({}).sort({ createdAt: -1 }).lean();
+    return res.status(200).json(books);
+  } catch (error) {
+    console.error('Error fetching books', error && (error.stack || error.message));
+    return res.status(500).json({ message: 'Failed to fetch books', error: error?.message });
+  }
+};
+
+/**
+ * POST - create a new book (image optional, categories optional)
+ */
 const postABook = async (req, res) => {
   try {
-    const fileUrl = uploadedFileToPublicUrl(req.file) || req.body.coverImage || undefined;
+    // Normalize cover URL from multiple possible sources (prefer Cloudinary)
+    const coverUrl =
+      (req.body && (req.body.coverImage || req.body.cover)) ||
+      (req.file && (req.file.path || req.file.secure_url || req.file.url)) ||
+      (typeof uploadedFileToPublicUrl === 'function' ? uploadedFileToPublicUrl(req.file) : undefined) ||
+      undefined;
+
     const categories = parseCategories(req.body?.category);
 
     const bookData = {
@@ -65,7 +86,7 @@ const postABook = async (req, res) => {
       description: req.body.description || '',
       category: categories,
       trending: req.body.trending === 'true' || req.body.trending === true || false,
-      ...(fileUrl ? { coverImage: fileUrl } : {}),
+      ...(coverUrl ? { coverImage: coverUrl } : {}),
       oldPrice: req.body.oldPrice ? Number(req.body.oldPrice) : 0,
       newPrice: req.body.newPrice ? Number(req.body.newPrice) : 0,
       count: req.body.count ? Number(req.body.count) : 1,
@@ -74,24 +95,18 @@ const postABook = async (req, res) => {
     const newBook = new Book(bookData);
     await newBook.save();
 
+    console.log('Created book with cover:', newBook.coverImage || '(none)');
+
     return res.status(201).json({ message: 'Book posted successfully', book: newBook });
   } catch (error) {
-    console.error('Error creating book', error);
+    console.error('Error creating book', error && (error.stack || error.message));
     return res.status(500).json({ message: 'Failed to create book', error: error.message });
   }
 };
 
-// get all books
-const getAllBooks =  async (req, res) => {
-  try {
-    const books = await Book.find().sort({ createdAt: -1});
-    res.status(200).send(books);
-  } catch (error) {
-    console.error("Error fetching books", error);
-    res.status(500).send({message: "Failed to fetch books"});
-  }
-};
-
+/**
+ * GET - single book
+ */
 const getSingleBook = async (req, res) => {
   try {
     const { id } = req.params;
@@ -102,74 +117,68 @@ const getSingleBook = async (req, res) => {
     if (!book) return res.status(404).json({ message: 'Book not Found!' });
     return res.status(200).json(book);
   } catch (error) {
-    console.error('Error fetching book', error);
+    console.error('Error fetching book', error && (error.stack || error.message));
     return res.status(500).json({ message: 'Failed to fetch book' });
   }
 };
 
+/**
+ * PUT - update a book (image optional)
+ */
 const UpdateBook = async (req, res) => {
   try {
-    const { id } = req.params;
+    const coverUrl =
+      (req.body && (req.body.coverImage || req.body.cover)) ||
+      (req.file && (req.file.path || req.file.secure_url || req.file.url)) ||
+      (typeof uploadedFileToPublicUrl === 'function' ? uploadedFileToPublicUrl(req.file) : undefined) ||
+      undefined;
 
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ message: 'Invalid book id' });
-    }
+    const updateData = {
+      title: req.body.title,
+      author: req.body.author,
+      description: req.body.description,
+      category: parseCategories(req.body?.category),
+      trending: req.body.trending === 'true' || req.body.trending === true || false,
+      oldPrice: req.body.oldPrice ? Number(req.body.oldPrice) : undefined,
+      newPrice: req.body.newPrice ? Number(req.body.newPrice) : undefined,
+      count: req.body.count ? Number(req.body.count) : undefined,
+      // only set coverImage if a new cover is present
+      ...(coverUrl ? { coverImage: coverUrl } : {}),
+    };
 
-    // Build update object from provided fields
-    const update = {};
+    // remove undefined keys so we don't overwrite fields unintentionally
+    Object.keys(updateData).forEach((k) => updateData[k] === undefined && delete updateData[k]);
 
-    if (req.body.title !== undefined) update.title = req.body.title;
-    if (req.body.author !== undefined) update.author = req.body.author;
-    if (req.body.description !== undefined) update.description = req.body.description;
+    const updated = await Book.findByIdAndUpdate(req.params.id, updateData, { new: true });
 
-    if (req.body.category !== undefined) {
-      update.category = parseCategories(req.body.category);
-    }
+    if (!updated) return res.status(404).json({ message: 'Book not found' });
 
-    if (req.body.trending !== undefined) {
-      update.trending = req.body.trending === 'true' || req.body.trending === true;
-    }
+    console.log('Updated book', updated._id, 'cover:', updated.coverImage || '(none)');
 
-    if (req.body.oldPrice !== undefined) update.oldPrice = Number(req.body.oldPrice);
-    if (req.body.newPrice !== undefined) update.newPrice = Number(req.body.newPrice);
-    if (req.body.count !== undefined) update.count = Number(req.body.count);
-
-    // If a new cover was uploaded, convert to public URL (disk -> /uploads/<filename>, cloud -> secure_url)
-    const fileUrl = uploadedFileToPublicUrl(req.file);
-    if (fileUrl) update.coverImage = fileUrl;
-
-    // If no fields provided, return a 400 (avoid accidental empty updates)
-    if (Object.keys(update).length === 0) {
-      return res.status(400).json({ message: 'No update fields provided' });
-    }
-
-    const updatedBook = await Book.findByIdAndUpdate(id, update, { new: true });
-
-    if (!updatedBook) {
-      return res.status(404).json({ message: "Book is not Found!" });
-    }
-
-    return res.status(200).json({ message: "Book updated successfully", book: updatedBook });
+    return res.json({ message: 'Book updated', book: updated });
   } catch (error) {
-    console.error("Error updating a book", error);
-    return res.status(500).json({ message: "Failed to update a book", error: error.message });
+    console.error('Error updating book', error && (error.stack || error.message));
+    return res.status(500).json({ message: 'Failed to update book', error: error.message });
   }
 };
 
+/**
+ * DELETE - delete a book
+ */
 const deleteABook = async (req, res) => {
   try {
-    const {id} = req.params;
-    const deletedBook =  await Book.findByIdAndDelete(id);
-    if(!deletedBook) {
-      return res.status(404).send({message: "Book is not Found!"});
+    const { id } = req.params;
+    const deletedBook = await Book.findByIdAndDelete(id);
+    if (!deletedBook) {
+      return res.status(404).send({ message: 'Book is not Found!' });
     }
     res.status(200).send({
-      message: "Book deleted successfully",
-      book: deletedBook
+      message: 'Book deleted successfully',
+      book: deletedBook,
     });
   } catch (error) {
-    console.error("Error deleting a book", error);
-    res.status(500).send({message: "Failed to delete a book"});
+    console.error('Error deleting a book', error && (error.stack || error.message));
+    res.status(500).send({ message: 'Failed to delete a book' });
   }
 };
 
@@ -178,5 +187,5 @@ module.exports = {
   getAllBooks,
   getSingleBook,
   UpdateBook,
-  deleteABook
+  deleteABook,
 };
