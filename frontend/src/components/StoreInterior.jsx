@@ -5,11 +5,10 @@ import img2 from "../assets/store_interior/2.jpg";
 import img3 from "../assets/store_interior/3.webp";
 
 /**
- * StoreInterior — premium gallery with:
- * - gold gradient underline
- * - fade+slide on enter (IntersectionObserver)
- * - subtle parallax on scroll (requestAnimationFrame)
- * - responsive layout
+ * StoreInterior — responsive gallery with:
+ * - object-contain on mobile so full image is visible
+ * - object-cover on larger screens for hero look
+ * - reduced parallax on small screens
  */
 
 const images = [
@@ -31,7 +30,6 @@ const images = [
 ];
 
 const StoreInterior = () => {
-  // refs for each card to handle intersection + parallax
   const cardRefs = useRef([]);
   const imgRefs = useRef([]);
   const [visible, setVisible] = useState([false, false, false]);
@@ -49,7 +47,6 @@ const StoreInterior = () => {
               next[idx] = true;
               return next;
             });
-            // don't unobserve immediately so parallax still works; but we can stop observing for performance
             observer.unobserve(entry.target);
           }
         });
@@ -64,28 +61,28 @@ const StoreInterior = () => {
     return () => observer.disconnect();
   }, []);
 
-  // Parallax: minor translateY on images based on scroll (uses rAF)
+  // Parallax: minor translateY on images; reduced on small screens
   useEffect(() => {
     let rafId = null;
 
     const handle = () => {
+      const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+      const isSmall = window.innerWidth < 640; // treat <640px as phone
+      const maxTranslate = isSmall ? 6 : 10; // reduce on phone
       cardRefs.current.forEach((card, idx) => {
         const imgEl = imgRefs.current[idx];
         if (!card || !imgEl) return;
         const rect = card.getBoundingClientRect();
-        const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
-        // Only apply parallax when visible in viewport reasonably
         if (rect.top < viewportHeight && rect.bottom > 0) {
-          // progress: -1..1 (centered -> 0)
           const centerOffset = (rect.top + rect.bottom) / 2 - viewportHeight / 2;
           const maxOffset = viewportHeight / 2 + rect.height / 2;
-          let progress = centerOffset / maxOffset; // -1..1
-          // clamp
+          let progress = centerOffset / maxOffset;
           if (progress > 1) progress = 1;
           if (progress < -1) progress = -1;
-          // small translate, invert direction for nicer effect
-          const translateY = -progress * 10; // px
-          imgEl.style.transform = `translateY(${translateY}px) scale(1.03)`;
+          const translateY = -progress * maxTranslate; // px
+          // Only apply translate, keep scale only on larger screens
+          const scale = isSmall ? 1 : 1.03;
+          imgEl.style.transform = `translateY(${translateY}px) scale(${scale})`;
         }
       });
       rafId = null;
@@ -98,7 +95,7 @@ const StoreInterior = () => {
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onScroll);
 
-    // initial call
+    // initial
     onScroll();
 
     return () => {
@@ -108,7 +105,6 @@ const StoreInterior = () => {
     };
   }, []);
 
-  // utility to set refs
   const setCardRef = (el, idx) => (cardRefs.current[idx] = el);
   const setImgRef = (el, idx) => (imgRefs.current[idx] = el);
 
@@ -118,7 +114,6 @@ const StoreInterior = () => {
       <div className="max-w-4xl mx-auto text-center mb-10">
         <h2 className="text-3xl md:text-4xl font-bold text-gray-900 relative inline-block">
           A Glimpse Inside Our Store
-          {/* Gold underline */}
           <span
             className="absolute left-1/2 transform -translate-x-1/2 -bottom-4 w-40 h-1 rounded-full"
             style={{
@@ -152,28 +147,29 @@ const StoreInterior = () => {
                 willChange: "transform, opacity",
               }}
             >
-              <div className="relative w-full h-80 md:h-96 overflow-hidden rounded-3xl">
+              {/* Responsive heights:
+                  - mobile: h-56 (short) and object-contain so full image is visible
+                  - sm/md: taller h-80 / h-96 and object-cover for hero look */}
+              <div className="relative w-full h-56 sm:h-80 md:h-96 overflow-hidden rounded-3xl">
                 <img
                   ref={(el) => setImgRef(el, idx)}
                   src={item.src}
                   alt={item.title}
-                  className="w-full h-full object-cover transition-transform duration-700 will-change-transform"
-                  style={{ transform: "translateY(0) scale(1.03)" }}
+                  className="w-full h-full object-contain sm:object-cover transition-transform duration-700 will-change-transform"
+                  style={{ transform: "translateY(0) scale(1)" }}
                 />
 
-                {/* Vignette overlay */}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/30 to-transparent" />
 
-                {/* content */}
                 <div className="absolute bottom-6 left-6 right-6 text-white">
                   <h3 className="text-lg md:text-xl font-semibold">{item.title}</h3>
                   <p className="mt-2 text-sm md:text-base text-white/90">{item.desc}</p>
                 </div>
 
-                {/* subtle gold border highlight on hover */}
-                <div className="pointer-events-none absolute inset-0 rounded-3xl transition-shadow duration-500"
-                     style={{ boxShadow: "inset 0 0 0 1px rgba(212,175,55,0.06)" }} />
-                <div className="absolute inset-0 rounded-3xl transition-all duration-700 group-hover:shadow-[0_0_30px_rgba(212,175,55,0.18)]" />
+                <div
+                  className="pointer-events-none absolute inset-0 rounded-3xl transition-shadow duration-500"
+                  style={{ boxShadow: "inset 0 0 0 1px rgba(212,175,55,0.06)" }}
+                />
               </div>
             </article>
           );
@@ -197,13 +193,14 @@ const StoreInterior = () => {
               `}
               style={{ willChange: "transform, opacity" }}
             >
-              <div className="relative w-full h-96 overflow-hidden rounded-3xl">
+              {/* mobile: shorter h-64 and object-contain; larger: h-96 */}
+              <div className="relative w-full h-64 sm:h-80 md:h-96 overflow-hidden rounded-3xl">
                 <img
                   ref={(el) => setImgRef(el, idx)}
                   src={item.src}
                   alt={item.title}
-                  className="w-full h-full object-cover transition-transform duration-700 will-change-transform"
-                  style={{ transform: "translateY(0) scale(1.03)" }}
+                  className="w-full h-full object-contain sm:object-cover transition-transform duration-700 will-change-transform"
+                  style={{ transform: "translateY(0) scale(1)" }}
                 />
 
                 <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/35 to-transparent" />
@@ -213,8 +210,10 @@ const StoreInterior = () => {
                   <p className="mt-2 text-sm md:text-base text-white/90">{item.desc}</p>
                 </div>
 
-                <div className="pointer-events-none absolute inset-0 rounded-3xl transition-shadow duration-500"
-                     style={{ boxShadow: "inset 0 0 0 1px rgba(212,175,55,0.06)" }} />
+                <div
+                  className="pointer-events-none absolute inset-0 rounded-3xl transition-shadow duration-500"
+                  style={{ boxShadow: "inset 0 0 0 1px rgba(212,175,55,0.06)" }}
+                />
               </div>
             </article>
           );
@@ -226,8 +225,6 @@ const StoreInterior = () => {
         <p className="text-gray-700 text-lg md:text-xl leading-relaxed">
           Our shelves are curated with care — from timeless classics to today's bestsellers.
         </p>
-
-        
       </div>
     </section>
   );
