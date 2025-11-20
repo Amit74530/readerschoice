@@ -1,5 +1,5 @@
 // src/pages/books/AllBooks.jsx
-import React, { useMemo, useEffect, useState } from "react";
+import React, { useMemo, useEffect, useState, useRef } from "react";
 import { useFetchAllBooksQuery } from "../../redux/features/books/booksApi";
 import Loading from "../../components/Loading";
 import BookCard from "./BookCard";
@@ -109,6 +109,9 @@ const AllBooks = () => {
     queryParams.getAll("tag").length ? queryParams.getAll("tag") : []
   );
 
+  // ref to the top of this page so we can scroll into view on page change
+  const mainRef = useRef(null);
+
   // Keep URL and state in sync: when URL page changes externally, update local page
   useEffect(() => {
     const p = parseInt(queryParams.get("page") || "1", 10);
@@ -199,6 +202,20 @@ const AllBooks = () => {
     return filtered.slice(start, start + PAGE_SIZE);
   }, [filtered, page]);
 
+  // Scroll to top of this view whenever page changes or filtered set changes
+  useEffect(() => {
+    if (!mainRef.current) {
+      // fallback to window top
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+    try {
+      mainRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    } catch {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }, [page, query, selectedTags, filtered.length]);
+
   if (isLoading) return <Loading />;
 
   if (isError)
@@ -215,7 +232,7 @@ const AllBooks = () => {
     );
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-10">
+    <div ref={mainRef} className="max-w-6xl mx-auto px-4 py-10">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
         <div>
           <h1 className="text-3xl font-semibold">Explore Books</h1>
