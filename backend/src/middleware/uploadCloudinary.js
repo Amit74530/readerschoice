@@ -1,14 +1,16 @@
+// backend/src/middleware/uploadCloudinary.js
+
 const multer = require("multer");
 const streamifier = require("streamifier");
 const cloudinary = require("cloudinary").v2;
 
-// Require Cloudinary env
+// Ensure Cloudinary env vars exist
 if (
   !process.env.CLOUDINARY_CLOUD_NAME ||
   !process.env.CLOUDINARY_API_KEY ||
   !process.env.CLOUDINARY_API_SECRET
 ) {
-  throw new Error("Cloudinary env vars missing");
+  throw new Error("❌ Cloudinary configuration missing!");
 }
 
 cloudinary.config({
@@ -18,32 +20,34 @@ cloudinary.config({
   secure: true,
 });
 
-// Memory upload
+// Use memory storage only
 const upload = multer({ storage: multer.memoryStorage() });
 
-// Helpers
-const clean = (s) =>
-  String(s || "")
+// Convert normal text → clean filename
+function clean(str) {
+  return String(str || "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
+}
 
-// Unique Cloudinary upload
-function uploadBuffer(buffer, title, originalName) {
+// Upload the buffer to Cloudinary with title-based public_id
+async function uploadToCloudinary(buffer, title, original) {
   return new Promise((resolve, reject) => {
-    const ext = (originalName.split(".").pop() || "jpg").toLowerCase();
-    const safeTitle = clean(title || '');
-    const public_id = `${safeTitle}-${Date.now()}`;
+    const ext = (original.split(".").pop() || "jpg").toLowerCase();
 
-    const opts = {
+    const name = clean(title);
+    const public_id = `${name}-${Date.now()}`;
+
+    const options = {
       folder: process.env.CLOUDINARY_FOLDER || "book_covers",
       public_id,
+      format: ext,
       overwrite: false,
       resource_type: "image",
-      format: ext,
     };
 
-    const stream = cloudinary.uploader.upload_stream(opts, (err, result) => {
+    const stream = cloudinary.uploader.upload_stream(options, (err, result) => {
       if (err) return reject(err);
       resolve(result);
     });
@@ -55,24 +59,28 @@ function uploadBuffer(buffer, title, originalName) {
 function uploadAndAttach(field = "cover") {
   return [
     upload.single(field),
+
     async (req, res, next) => {
       try {
         if (!req.file) return next();
 
-        const title = req.body?.title || "book";
-        const originalName = req.file.originalname || "image.jpg";
+        const title = req.body?.title || req.body?.name || "book";
+        const original = req.file.originalname || "image.jpg";
 
-        const result = await uploadBuffer(req.file.buffer, title, originalName);
-        const url = result.secure_url;
+        const result = await uploadToCloudinary(
+          req.file.buffer,
+          title,
+          original
+        );
 
-        req.body.coverImage = url;
-        req.file.path = url;
+        req.body.coverImage = result.secure_url;
+        req.file.path = result.secure_url;
 
         next();
       } catch (err) {
         console.error("Cloudinary upload error:", err);
-        res.status(500).json({
-          message: "Cloudinary upload failed",
+        return res.status(500).json({
+          message: "Image upload failed",
           error: err.message,
         });
       }
