@@ -97,6 +97,16 @@ app.get("/_cors-test", (req, res) => {
 // ---------- Serve uploaded images ----------
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
+/*
+  ---------- Lightweight health endpoint ----------
+  This returns 200 OK immediately and does NOT touch DB or other services.
+  Use this in uptime monitors (UptimeRobot / cron-job.org / GitHub Actions)
+  to keep your Render instance awake without stressing your backend.
+*/
+app.get("/health", (req, res) => {
+  return res.status(200).send("OK");
+});
+
 // ---------- Mount routes ----------
 app.use("/api/books", bookRoutes);
 app.use("/api/auth", userRoutes);
